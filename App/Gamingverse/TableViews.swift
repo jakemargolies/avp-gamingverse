@@ -79,19 +79,50 @@ struct SeatView: View {
     let playerID: PlayerID
 
     var body: some View {
+        VStack(spacing: 8) {
+            HoleCardsView(table: table, playerID: playerID, cardWidth: 56)
+            PlayerInfoView(table: table, playerID: playerID)
+        }
+        .padding(16)
+        .frame(width: 220, height: 230)
+        .seatHighlight(table: table, playerID: playerID)
+    }
+}
+
+/// A player's two hole cards: face down, revealed at showdown, or empty slots when not in the hand.
+/// Always the same size so it can be placed in 3D before cards are dealt.
+struct HoleCardsView: View {
+    let table: HoldemTableModel
+    let playerID: PlayerID
+    var cardWidth: CGFloat = 60
+    var showsEmptySlots = true
+
+    var body: some View {
         let player = table.game.player(playerID)!
         let revealed = table.revealedHand(of: playerID)
-        VStack(spacing: 8) {
-            HStack(spacing: 6) {
-                if player.isLive || revealed != nil {
-                    ForEach(0..<player.holeCards.count, id: \.self) { index in
-                        CardView(card: revealed == nil ? nil : player.holeCards[index], width: 56)
-                    }
+        let faceUp = revealed != nil || playerID == HoldemTableModel.humanID
+        HStack(spacing: cardWidth * 0.1) {
+            ForEach(0..<2, id: \.self) { index in
+                if (player.isLive || revealed != nil) && index < player.holeCards.count {
+                    CardView(card: faceUp ? player.holeCards[index] : nil, width: cardWidth)
+                } else if showsEmptySlots {
+                    CardSlot(width: cardWidth)
                 } else {
-                    CardSlot(width: 56)
-                    CardSlot(width: 56)
+                    Color.clear.frame(width: cardWidth, height: cardWidth * 1.4)
                 }
             }
+        }
+    }
+}
+
+/// Name, dealer button, stack and latest action.
+struct PlayerInfoView: View {
+    let table: HoldemTableModel
+    let playerID: PlayerID
+
+    var body: some View {
+        let player = table.game.player(playerID)!
+        VStack(spacing: 8) {
             HStack(spacing: 6) {
                 if table.isDealer(playerID) { DealerButton() }
                 Text(player.name).font(.headline)
@@ -99,31 +130,25 @@ struct SeatView: View {
             Text("\(player.chips) chips")
                 .font(.subheadline)
                 .monospacedDigit()
-            Text(status(of: player, revealed: revealed))
+            Text(table.seatStatus(of: playerID))
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(table.winnings(of: playerID) != nil ? .yellow : .secondary)
                 .lineLimit(1)
         }
-        .padding(16)
-        .frame(width: 220, height: 230)
-        .glassBackgroundEffect()
-        .overlay {
-            if table.isCurrentPlayer(playerID) {
-                RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.yellow, lineWidth: 4)
-            }
-        }
-        .opacity(player.isLive || table.game.phase == .handComplete && player.chips > 0 ? 1 : 0.5)
     }
+}
 
-    private func status(of player: Player, revealed: EvaluatedHand?) -> String {
-        if let won = table.winnings(of: playerID) { return "Wins \(won)" }
-        if let revealed { return revealed.value.category.name }
-        if !player.isInHand && player.chips == 0 { return "Out" }
-        if player.isAllIn { return "All in" }
-        if let action = table.lastActions[playerID] {
-            return action == .call || action == .check ? "\(action.label) · \(player.streetBet)" : action.label
-        }
-        return player.streetBet > 0 ? "Bet \(player.streetBet)" : " "
+extension View {
+    /// Glass panel that's outlined on the player's turn and dimmed once they're out of the hand.
+    func seatHighlight(table: HoldemTableModel, playerID: PlayerID) -> some View {
+        let player = table.game.player(playerID)!
+        return glassBackgroundEffect()
+            .overlay {
+                if table.isCurrentPlayer(playerID) {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(.yellow, lineWidth: 4)
+                }
+            }
+            .opacity(player.isLive || table.game.phase == .handComplete && player.chips > 0 ? 1 : 0.5)
     }
 }
 

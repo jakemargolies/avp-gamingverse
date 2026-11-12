@@ -61,6 +61,19 @@ final class HoldemTableModel {
         return HandEvaluator.evaluate(human.holeCards + game.community).value.category.name
     }
 
+    /// One-line status under a player's name: their winnings, shown hand, latest action or bet.
+    func seatStatus(of id: PlayerID) -> String {
+        let player = game.player(id)!
+        if let won = winnings(of: id) { return "Wins \(won)" }
+        if let revealed = revealedHand(of: id) { return revealed.value.category.name }
+        if !player.isInHand && player.chips == 0 { return "Out" }
+        if player.isAllIn { return "All in" }
+        if let action = lastActions[id] {
+            return action == .call || action == .check ? "\(action.label) · \(player.streetBet)" : action.label
+        }
+        return player.streetBet > 0 ? "Bet \(player.streetBet)" : " "
+    }
+
     /// e.g. "Basil wins 120 with Two Pair".
     var resultSummary: String? {
         guard game.phase == .handComplete, let result = game.lastResult else { return nil }

@@ -66,7 +66,7 @@ open Gamingverse.xcodeproj
 
 1. Pick a run destination: **Apple Vision Pro** (simulator) or your paired headset.
 2. For a real headset, the signing team comes from `DEVELOPMENT_TEAM` in `project.yml`. To use a different team, change it there (the ID is shown next to the team in **Xcode → Settings → Accounts**) and rerun `xcodegen`.
-3. Press **⌘R**. The lobby window opens; choose the number of opponents and press **Open Table**.
+3. Press **⌘R**. The lobby window opens; choose the number of opponents and press **Enter Card Room** (fully immersive, life-size table; best played seated) or **Tabletop View** (a small table in a volume in your room).
 
 From the command line (the simulator must be booted, e.g. by opening Simulator.app):
 
@@ -79,7 +79,7 @@ xcrun simctl launch booted com.jakemargolies.gamingverse -openTable
 xcrun simctl io booted screenshot screenshot.png
 ```
 
-`-openTable` is a development shortcut that opens the table and deals the first hand straight away, so the table can be checked without clicking through the lobby.
+`-openTable` is a development shortcut that opens the table and deals the first hand straight away, so the table can be checked without clicking through the lobby. `-openRoom` does the same for the immersive card room; add `-tiltRoom` to tip the room toward the simulator's level camera so the table is in the screenshot.
 
 ### Simulator vs. device
 

@@ -5,7 +5,7 @@ struct GamingverseApp: App {
     @State private var appModel = AppModel()
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: LobbyView.windowID) {
             LobbyView()
                 .environment(appModel)
         }
@@ -24,6 +24,12 @@ struct GamingverseApp: App {
             }
             return WindowPlacement()
         }
+
+        ImmersiveSpace(id: CardRoomView.spaceID) {
+            CardRoomView()
+                .environment(appModel)
+        }
+        .immersionStyle(selection: .constant(.full), in: .full)
     }
 }
 
