@@ -1,0 +1,33 @@
+# XcodeGen spec for the visionOS app. Edit this file rather than project settings in Xcode,
+# then run `xcodegen` to regenerate Gamingverse.xcodeproj (which is not committed).
+name: Gamingverse
+options:
+  bundleIdPrefix: com.jakemargolies
+  deploymentTarget:
+    visionOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+packages:
+  TabletopCore:
+    path: Packages/TabletopCore
+targets:
+  Gamingverse:
+    type: application
+    platform: visionOS
+    sources:
+      - App/Gamingverse
+    dependencies:
+      - package: TabletopCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.jakemargolies.gamingverse
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "7"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_FILE: App/Info.plist
+        INFOPLIST_KEY_CFBundleDisplayName: Gamingverse
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: VJ5DCU2F44 # Personal team; change to your own to build for your devices

@@ -1,0 +1,18 @@
+# avp-gamingverse
+
+Multiplayer tabletop games for Apple Vision Pro. See `README.md` for the layout and roadmap and `docs/DEVELOPMENT.md` for full setup.
+
+## Commands
+
+- Game logic: `cd Packages/TabletopCore && swift build && swift test`; `swift run holdem-sim [seed] [hands]` smoke-tests the engine.
+- App project: `xcodegen` at the repo root regenerates `Gamingverse.xcodeproj` from `project.yml` (the project file is not committed; never edit it directly).
+- App build: `xcodebuild -project Gamingverse.xcodeproj -scheme Gamingverse -destination 'platform=visionOS Simulator,name=Apple Vision Pro' -derivedDataPath .build/DerivedData build`
+- Visual check: install the built app with `xcrun simctl install booted <app>`, launch with `xcrun simctl launch booted com.jakemargolies.gamingverse -openTable` (volume) or `-openRoom` (immersive card room), which open the game and deal, then `xcrun simctl io booted screenshot <file>`. The simulator camera stands at ~1.6 m looking level; add `-tiltRoom` with `-openRoom` to tip the room up so the table and controls are in frame. Add `-autopilot` to have your turns played too (check/call), so whole hands run unattended; take a burst of screenshots to review the animations.
+
+## Conventions
+
+- Game rules live in `TabletopCore` and stay free of UI/RealityKit imports so they can run on macOS and later act as shared multiplayer state. The app only renders state and forwards actions.
+- Swift 6 language mode; UI models are `@MainActor @Observable`.
+- The card room animates game events: `HoldemTableModel` hands each move's `GameEvent`s to a `GamePresenter` (the room's `TableDirector`) and waits for it before publishing the new state. Views read `table.game`, which trails the engine until the animation finishes.
+- Sounds are synthesized in `SoundBank` (no audio assets). RealityKit opacity textures read the red channel unless swizzled to alpha (see `CardTextures`).
+- SourceKit errors like "Cannot find X in scope" in the editor are usually indexing noise; trust `xcodebuild`.
