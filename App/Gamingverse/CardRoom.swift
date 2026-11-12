@@ -44,6 +44,11 @@ enum CardRoomLayout {
 // MARK: - Room
 
 enum CardRoomBuilder {
+    /// The spotlight over the table, which the director dims and tints for big moments.
+    static let lampLightName = "lampLight"
+    static let lampColor = UIColor(red: 1, green: 0.88, blue: 0.7, alpha: 1)
+    static let lampIntensity: Float = 60000
+
     static func makeRoom() -> Entity {
         let room = Entity()
         let size = CardRoomLayout.roomSize
@@ -155,10 +160,11 @@ enum CardRoomBuilder {
         lamp.addChild(bulb)
 
         let light = Entity()
-        var spot = SpotLightComponent(color: UIColor(red: 1, green: 0.88, blue: 0.7, alpha: 1), intensity: 60000, innerAngleInDegrees: 50, outerAngleInDegrees: 85, attenuationRadius: 6)
+        var spot = SpotLightComponent(color: lampColor, intensity: lampIntensity, innerAngleInDegrees: 50, outerAngleInDegrees: 85, attenuationRadius: 6)
         spot.attenuationFalloffExponent = 1.5
         light.components.set(spot)
         light.components.set(SpotLightComponent.Shadow())
+        light.name = CardRoomBuilder.lampLightName
         light.orientation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0]) // point straight down
         light.position.y = -0.06
         lamp.addChild(light)
@@ -195,8 +201,11 @@ final class ChipStack {
     let entity = Entity()
     private let chipsPerDisc: Int
     private let maxDiscs: Int
-    private static let discHeight: Float = 0.0045
-    private static let colors: [UIColor] = [.systemRed, .systemBlue, .black, .systemGreen, .white]
+    static let discHeight: Float = 0.0045
+    static let colors: [UIColor] = [.systemRed, .systemBlue, .black, .systemGreen, .white]
+
+    /// Where the next chip would sit, for chips flying onto or off the stack.
+    var top: SIMD3<Float> { entity.position + [0, Float(entity.children.count) * Self.discHeight, 0] }
 
     init(chipsPerDisc: Int, maxDiscs: Int = 30) {
         self.chipsPerDisc = chipsPerDisc
@@ -237,6 +246,21 @@ final class AvatarRig {
     private var yaw: Float = 0
     private var pitch: Float = 0
     private var lean: Float = 0
+    private var arms: [(shoulder: SIMD3<Float>, rest: SIMD3<Float>, hand: SIMD3<Float>, sleeve: ModelEntity, palm: ModelEntity)] = []
+    private var tapStart: Float = -10
+    private var bounce: Float = 0
+
+    enum Pose {
+        case rest
+        /// Chin in the right hand while deciding.
+        case thinking
+        /// Both hands shoving chips toward the middle.
+        case push
+        /// Both arms in the air.
+        case celebrate
+    }
+
+    var pose = Pose.rest
 
     static let seatHeight: Float = 0.47
     static let palette: [(shirt: UIColor, hair: UIColor, skin: UIColor)] = [
@@ -300,20 +324,19 @@ final class AvatarRig {
             eyes.append(eye)
         }
 
-        // Arms run from the shoulders to hands resting on the table.
+        // Arms run from the shoulders to the hands, which rest on the table unless posing.
         let handY = CardRoomLayout.tableHeight + 0.03 - seat
         for side: Float in [-1, 1] {
             let shoulder = SIMD3<Float>(side * 0.2, 0.46, 0)
-            let hand = SIMD3<Float>(side * 0.16, handY, reach)
-            let arm = ModelEntity(mesh: .generateCylinder(height: length(hand - shoulder), radius: 0.04), materials: [shirt])
-            arm.position = (shoulder + hand) / 2
-            arm.orientation = simd_quatf(from: [0, 1, 0], to: normalize(hand - shoulder))
-            body.addChild(arm)
+            let rest = SIMD3<Float>(side * 0.16, handY, reach)
+            let sleeve = ModelEntity(mesh: .generateCylinder(height: 1, radius: 0.04), materials: [shirt])
             let palm = ModelEntity(mesh: .generateSphere(radius: 0.045), materials: [skin])
-            palm.position = hand
             palm.scale = [0.8, 0.5, 1]
+            body.addChild(sleeve)
             body.addChild(palm)
+            arms.append((shoulder, rest, rest, sleeve, palm))
         }
+        placeArms()
 
         root.components.set(GroundingShadowComponent(castsShadow: true))
     }
@@ -339,5 +362,45 @@ final class AvatarRig {
 
         head.orientation = simd_quatf(angle: yaw, axis: [0, 1, 0]) * simd_quatf(angle: -pitch, axis: [1, 0, 0])
         body.orientation = simd_quatf(angle: -lean, axis: [1, 0, 0])
+
+        // Hands ease toward the pose; a tap lifts the right hand and brings it down on the felt.
+        let tap = 0.07 * sin(.pi * min(max((time - tapStart) / 0.35, 0), 1))
+        for index in arms.indices {
+            let side: Float = index == 0 ? -1 : 1
+            var target = arms[index].rest
+            switch pose {
+            case .rest:
+                break
+            case .thinking where side > 0:
+                target = [0.03, 0.6, 0.14]
+            case .thinking:
+                break
+            case .push:
+                target = arms[index].rest + [0, 0.03, 0.2]
+            case .celebrate:
+                target = [side * 0.3, 1.0 + 0.04 * sin(time * 9 + side), 0.05]
+            }
+            if side > 0 { target.y += tap }
+            arms[index].hand += (target - arms[index].hand) * min(1, deltaTime * 7)
+        }
+        placeArms()
+
+        bounce += ((pose == .celebrate ? 1 : 0) - bounce) * min(1, deltaTime * 5)
+        body.position.y = Self.seatHeight + bounce * 0.03 * abs(sin(time * 9))
+    }
+
+    /// Raps the table, e.g. to check.
+    func tap(at time: Float) {
+        tapStart = time
+    }
+
+    private func placeArms() {
+        for arm in arms {
+            let span = arm.hand - arm.shoulder
+            arm.sleeve.position = (arm.shoulder + arm.hand) / 2
+            arm.sleeve.orientation = simd_quatf(from: [0, 1, 0], to: normalize(span))
+            arm.sleeve.scale = [1, length(span), 1]
+            arm.palm.position = arm.hand
+        }
     }
 }

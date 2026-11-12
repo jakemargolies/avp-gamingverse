@@ -2,6 +2,13 @@ import Foundation
 import Observation
 import TabletopCore
 
+/// Shows what happens in the game, e.g. by animating it. After each move the model hands the new
+/// events to the presenter and waits for it before publishing the new state and moving on.
+@MainActor
+protocol GamePresenter: AnyObject {
+    func present(_ events: [GameEvent], from before: HoldemGame, to after: HoldemGame) async
+}
+
 /// Runs a single-player game: you against bots. Wraps the `HoldemGame` engine, plays the bots'
 /// turns with a short delay so you can follow along, and exposes what the table views need.
 @MainActor @Observable
@@ -9,20 +16,29 @@ final class HoldemTableModel {
     static let humanID: PlayerID = "you"
     static let botNames = ["Ada", "Basil", "Cleo", "Dmitri", "Esme"]
 
+    /// The state the views show. Trails `engine` while the presenter animates what just happened.
     private(set) var game: HoldemGame
     /// Each player's latest action on the current street (folds stay for the whole hand).
     private(set) var lastActions: [PlayerID: PlayerAction] = [:]
+    /// True while bots are playing or a move is being presented; your controls wait for it.
+    private(set) var isBusy = false
     let botCount: Int
+    @ObservationIgnored weak var presenter: (any GamePresenter)?
+    /// Development aid: plays your turns too (checking or calling), so whole hands run unattended.
+    @ObservationIgnored var autopilot = false
 
+    private var engine: HoldemGame
     private let bots: [PlayerID: HoldemBot]
     private var rng: SeededGenerator
-    private var botTask: Task<Void, Never>?
+    private var playTask: Task<Void, Never>?
 
     init(botCount: Int, startingChips: Int = 1000, seed: UInt64 = .random(in: .min ... .max)) {
         let names = Self.botNames.prefix(botCount)
         let humans = [Player(id: Self.humanID, name: "You", chips: startingChips)]
         let botPlayers = names.map { Player(id: PlayerID($0), name: $0, chips: startingChips, isBot: true) }
-        game = HoldemGame(players: humans + botPlayers, smallBlind: 5, bigBlind: 10, seed: seed)
+        let game = HoldemGame(players: humans + botPlayers, smallBlind: 5, bigBlind: 10, seed: seed)
+        engine = game
+        self.game = game
         // Spread personalities from tight-passive to loose-aggressive.
         bots = Dictionary(uniqueKeysWithValues: names.enumerated().map { index, name in
             (PlayerID(name), HoldemBot(aggression: 0.2 + 0.6 * Double(index) / Double(max(botCount - 1, 1))))
@@ -35,7 +51,7 @@ final class HoldemTableModel {
 
     var human: Player { game.player(Self.humanID)! }
     var botPlayers: [Player] { game.players.filter(\.isBot) }
-    var humanLegalActions: LegalActions? { game.legalActions(for: Self.humanID) }
+    var humanLegalActions: LegalActions? { isBusy ? nil : game.legalActions(for: Self.humanID) }
 
     /// Over once you're out of chips or have won everyone else's.
     var isGameOver: Bool { !game.isBetting && (human.chips == 0 || !game.canStartHand) }
@@ -90,48 +106,69 @@ final class HoldemTableModel {
     // MARK: - Commands
 
     func dealNextHand() {
-        guard !isGameOver else { return }
+        guard !isGameOver, !isBusy else { return }
         lastActions = [:]
         do {
-            try game.startHand()
+            try engine.startHand()
         } catch {
             assertionFailure("Couldn't start hand: \(error)")
+            return
         }
-        runBots()
+        playUntilYourTurn()
     }
 
     func act(_ action: PlayerAction) {
-        guard isCurrentPlayer(Self.humanID) else { return }
+        guard !isBusy, engine.currentPlayer?.id == Self.humanID else { return }
         apply(action, by: Self.humanID)
-        runBots()
+        playUntilYourTurn()
     }
 
     private func apply(_ action: PlayerAction, by id: PlayerID) {
-        let phaseBefore = game.phase
+        let phaseBefore = engine.phase
         do {
-            try game.apply(action, by: id)
+            try engine.apply(action, by: id)
         } catch {
             assertionFailure("\(id) tried an illegal action \(action): \(error)")
             return
         }
         lastActions[id] = action
-        if game.phase != phaseBefore {
+        if engine.phase != phaseBefore {
             lastActions = lastActions.filter { $0.value == .fold }
         }
     }
 
-    /// Plays bot turns until it's your turn or the hand is over.
-    private func runBots() {
-        botTask?.cancel()
-        botTask = Task {
-            while let bot = game.currentPlayer, bot.isBot {
-                // Move faster once you've folded and are just watching.
-                try? await Task.sleep(for: human.isLive ? .milliseconds(900) : .milliseconds(400))
-                guard !Task.isCancelled else { return }
-                let action = bots[bot.id]!.decide(for: bot.id, in: game, using: &rng)
-                apply(action, by: bot.id)
+    /// Presents the latest move, then plays bot turns until it's your turn or the hand is over.
+    private func playUntilYourTurn() {
+        isBusy = true
+        playTask = Task {
+            await publish()
+            while let player = engine.currentPlayer, player.isBot || autopilot {
+                // A moment to "think"; quicker once you've folded and are just watching.
+                let delay = human.isLive ? Int.random(in: 700...1400) : 350
+                try? await Task.sleep(for: .milliseconds(delay))
+                guard !Task.isCancelled else { break }
+                apply(decision(for: player), by: player.id)
+                await publish()
             }
+            isBusy = false
         }
+    }
+
+    private func decision(for player: Player) -> PlayerAction {
+        if let bot = bots[player.id] {
+            return bot.decide(for: player.id, in: engine, using: &rng)
+        }
+        return engine.legalActions(for: player.id)?.canCheck == true ? .check : .call
+    }
+
+    /// Lets the presenter show the new events, then shows the new state.
+    private func publish() async {
+        let newHand = engine.handNumber != game.handNumber
+        let events = Array(engine.events.dropFirst(newHand ? 0 : game.events.count))
+        if let presenter, !events.isEmpty {
+            await presenter.present(events, from: game, to: engine)
+        }
+        game = engine
     }
 }
 

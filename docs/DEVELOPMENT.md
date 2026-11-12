@@ -79,7 +79,7 @@ xcrun simctl launch booted com.jakemargolies.gamingverse -openTable
 xcrun simctl io booted screenshot screenshot.png
 ```
 
-`-openTable` is a development shortcut that opens the table and deals the first hand straight away, so the table can be checked without clicking through the lobby. `-openRoom` does the same for the immersive card room; add `-tiltRoom` to tip the room toward the simulator's level camera so the table is in the screenshot.
+`-openTable` is a development shortcut that opens the table and deals the first hand straight away, so the table can be checked without clicking through the lobby. `-openRoom` does the same for the immersive card room; add `-tiltRoom` to tip the room toward the simulator's level camera so the table is in the screenshot. Add `-autopilot` to have your turns checked or called automatically so whole hands play out unattended.
 
 ### Simulator vs. device
 

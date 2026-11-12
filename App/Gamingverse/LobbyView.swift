@@ -45,8 +45,8 @@ struct LobbyView: View {
                 appModel.table?.dealNextHand()
                 openWindow(id: HoldemTableView.windowID)
             } else if arguments.contains("-openRoom") {
+                // The room deals once it's up, so the deal animates (add `-autopilot` to play your turns too).
                 appModel.startNewGame(botCount: botCount)
-                appModel.table?.dealNextHand()
                 Task { await enterCardRoom(newGame: false) }
             }
         }

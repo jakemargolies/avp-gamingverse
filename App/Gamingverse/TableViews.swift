@@ -52,22 +52,27 @@ struct DealerButton: View {
 /// Community cards and the pot, lying on the middle of the table.
 struct BoardView: View {
     let table: HoldemTableModel
+    /// Off when 3D cards are dealt onto the slots instead.
+    var showsCards = true
+    var showsPot = true
 
     var body: some View {
         let game = table.game
         VStack(spacing: 14) {
             HStack(spacing: 10) {
                 ForEach(0..<5, id: \.self) { index in
-                    if index < game.community.count {
+                    if showsCards && index < game.community.count {
                         CardView(card: game.community[index], width: 80)
                     } else {
                         CardSlot(width: 80)
                     }
                 }
             }
-            Text(game.pot > 0 ? "Pot \(game.pot)" : " ")
-                .font(.title2.weight(.semibold))
-                .monospacedDigit()
+            if showsPot {
+                Text(game.pot > 0 ? "Pot \(game.pot)" : " ")
+                    .font(.title2.weight(.semibold))
+                    .monospacedDigit()
+            }
         }
         .padding(20)
     }
@@ -214,7 +219,7 @@ struct PlayerControlsView: View {
                 }
             }
         } else if game.isBetting {
-            Text("\(game.currentPlayer?.name ?? "Dealer") is thinking…")
+            Text(game.currentPlayer.map { $0.id == HoldemTableModel.humanID ? " " : "\($0.name) is thinking…" } ?? " ")
                 .foregroundStyle(.secondary)
         } else {
             VStack(spacing: 12) {
@@ -222,6 +227,7 @@ struct PlayerControlsView: View {
                     Text(summary).multilineTextAlignment(.center)
                 }
                 Button(game.handNumber == 0 ? "Deal" : "Next Hand") { table.dealNextHand() }
+                    .disabled(table.isBusy)
             }
         }
     }
