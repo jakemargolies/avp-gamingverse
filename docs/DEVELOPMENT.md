@@ -49,19 +49,37 @@ Do this once per Mac/headset pair.
 
 1. Put the Mac and the Vision Pro on the same Wi-Fi network.
 2. On the Vision Pro, open **Settings → General → Remote Devices**. It will show a pairing code.
-3. On the Mac, open Xcode and choose **Window → Devices and Simulators**. Select the Vision Pro under *Discovered* and enter the code.
+3. On the Mac, open **Device Hub** in Xcode with **⇧⌘2** (Xcode 27 replaced the old *Window → Devices and Simulators*, which no longer appears in the Window menu). Select the Vision Pro and pair it, entering the code shown in the headset.
 4. On the Vision Pro, open **Settings → Privacy & Security → Developer Mode**, turn it on, and restart when prompted. (The Developer Mode option only appears after the device has been paired with Xcode.)
 
 Each headset you want to test multiplayer with needs to be paired and have Developer Mode on.
 
 ## 4. Build and run the Vision Pro app
 
-> **Not available yet.** The visionOS app target hasn't been created; this section will be filled in when it is. The expected workflow:
->
-> 1. Open the Xcode project.
-> 2. In the target's **Signing & Capabilities** tab, choose your team.
-> 3. Pick a run destination: **Apple Vision Pro** (simulator) or your paired headset.
-> 4. Press **⌘R**.
+The Xcode project is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen), so `Gamingverse.xcodeproj` is not committed. Change build settings, targets and dependencies in `project.yml`, not in Xcode: edits made in Xcode's project editor are lost the next time the project is generated.
+
+```sh
+brew install xcodegen        # once
+xcodegen                     # from the repo root; rerun after pulling or after adding/removing files
+open Gamingverse.xcodeproj
+```
+
+1. Pick a run destination: **Apple Vision Pro** (simulator) or your paired headset.
+2. For a real headset, the signing team comes from `DEVELOPMENT_TEAM` in `project.yml`. To use a different team, change it there (the ID is shown next to the team in **Xcode → Settings → Accounts**) and rerun `xcodegen`.
+3. Press **⌘R**. The lobby window opens; choose the number of opponents and press **Open Table**.
+
+From the command line (the simulator must be booted, e.g. by opening Simulator.app):
+
+```sh
+xcodebuild -project Gamingverse.xcodeproj -scheme Gamingverse \
+  -destination 'platform=visionOS Simulator,name=Apple Vision Pro' \
+  -derivedDataPath .build/DerivedData build
+xcrun simctl install booted .build/DerivedData/Build/Products/Debug-xrsimulator/Gamingverse.app
+xcrun simctl launch booted com.jakemargolies.gamingverse -openTable
+xcrun simctl io booted screenshot screenshot.png
+```
+
+`-openTable` is a development shortcut that opens the table and deals the first hand straight away, so the table can be checked without clicking through the lobby.
 
 ### Simulator vs. device
 
@@ -71,5 +89,5 @@ The simulator is fine for layout, game flow and UI. Use a real headset for anyth
 
 - **`xcodebuild requires Xcode, but active developer directory ... is a command line tools instance`**: run the `xcode-select` command from step 1.
 - **`XCTest not available` when running `swift test`**: same cause; select Xcode.
-- **Vision Pro doesn't appear in Devices and Simulators**: check that both are on the same network, the headset is unlocked and worn (or awake), and **Remote Devices** is open on the headset.
+- **Vision Pro doesn't appear in Device Hub**: check that both are on the same network, the headset is unlocked and worn (or awake), and **Remote Devices** is open on the headset.
 - **App stops launching on the headset after a week**: free-account provisioning profiles expire after 7 days; rebuild from Xcode to renew.

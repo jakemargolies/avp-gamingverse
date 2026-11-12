@@ -3,6 +3,7 @@ A multiplayer VR gaming experience for the Apple Vision Pro
 
 ## Layout
 
+- `App/Gamingverse` — the visionOS app: a lobby window and a volumetric poker table (SwiftUI + RealityKit). The Xcode project is generated from `project.yml` with XcodeGen.
 - `Packages/TabletopCore` — platform-independent game logic (cards, hand evaluation, no-limit Texas Hold'em engine, bots). No UI or RealityKit dependencies, so it can be tested on a Mac and later shared as the authoritative game state in multiplayer.
 
 ## Getting started
